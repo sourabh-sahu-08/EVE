@@ -1,0 +1,57 @@
+# ==========================================
+# EVE Android GitIgnore
+# ==========================================
+
+# OS & Temporary
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.tmp
+*.bak
+*.swp
+*~
+
+# IDE & Editor
+.idea/
+*.iml
+.vscode/
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# Secrets & Environment Variables (STRICT)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.jks
+*.keystore
+local.properties
+secrets.properties
+google-services.json
+
+# ==========================================
+# Android & Gradle
+# ==========================================
+.gradle/
+build/
+*/build/
+*/*/build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+
+# Test & Coverage
+coverage/
+*/coverage/
+*.lcov
+.nyc_output
+
+# Screencaps & Artifacts
+eve_*.png
+*.png

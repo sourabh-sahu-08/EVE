@@ -1,0 +1,19 @@
+package com.eve.assistant
+
+import androidx.navigation3.runtime.NavKey
+import kotlinx.serialization.Serializable
+
+@Serializable
+data object HomeKey : NavKey
+
+@Serializable
+data object HistoryKey : NavKey
+
+@Serializable
+data object SettingsKey : NavKey
+
+@Serializable
+data object VoiceSettingsKey : NavKey
+
+@Serializable
+data object PrivacyPermissionsKey : NavKey
