@@ -1,5 +1,8 @@
 package com.eve.assistant.ui.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,9 +36,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eve.assistant.ui.components.EveIcons
 import com.eve.assistant.ui.components.GlassCard
@@ -59,7 +64,22 @@ fun PrivacyPermissionsScreen(
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    val isMicGranted = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.RECORD_AUDIO
+    ) == PackageManager.PERMISSION_GRANTED
+
+    val isNotifGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+    } else {
+        true
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -117,14 +137,14 @@ fun PrivacyPermissionsScreen(
                         icon = EveIcons.Mic,
                         title = "Microphone Access",
                         description = "Required for capturing user voice queries",
-                        isGranted = uiState.isMicPermissionGranted
+                        isGranted = isMicGranted
                     )
 
                     PermissionStatusRow(
                         icon = EveIcons.Notifications,
                         title = "Push Notifications",
                         description = "Displays ambient background assistant state",
-                        isGranted = uiState.isNotificationPermissionGranted
+                        isGranted = isNotifGranted
                     )
                 }
             }

@@ -13,10 +13,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -29,10 +32,12 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,12 +50,14 @@ import com.eve.assistant.ui.theme.ElectricCyan
 import com.eve.assistant.ui.theme.GlassBorder
 import com.eve.assistant.ui.theme.GlassSurface
 import com.eve.assistant.ui.theme.SpaceBlack
+import com.eve.assistant.ui.theme.StateListening
 import com.eve.assistant.ui.theme.TextPrimary
 import com.eve.assistant.ui.theme.TextSecondary
 import com.eve.assistant.ui.theme.TextTertiary
 
 /**
  * Screen for configuring synthetic voice personality, speech rate, pitch, and acoustic filters.
+ * Integrates with Android TextToSpeech for real-time auditory verification.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,7 +66,13 @@ fun VoiceSettingsScreen(
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel
 ) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    DisposableEffect(context) {
+        viewModel.attachContext(context)
+        onDispose { }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -223,6 +236,45 @@ fun VoiceSettingsScreen(
                                 inactiveTrackColor = GlassSurface
                             )
                         )
+                    }
+
+                    // Live Synthesis Test Button
+                    Button(
+                        onClick = {
+                            if (uiState.isSpeakingTest) {
+                                viewModel.stopVoiceSynthesis()
+                            } else {
+                                viewModel.testVoiceSynthesis()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (uiState.isSpeakingTest) CyberViolet.copy(alpha = 0.35f) else ElectricCyan.copy(alpha = 0.18f),
+                            contentColor = if (uiState.isSpeakingTest) CyberViolet else ElectricCyan
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (uiState.isSpeakingTest) CyberViolet else ElectricCyan
+                        )
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.isSpeakingTest) EveIcons.Stop else EveIcons.RecordVoiceOver,
+                                contentDescription = null,
+                                tint = if (uiState.isSpeakingTest) CyberViolet else ElectricCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = if (uiState.isSpeakingTest) "Stop Test Utterance" else "Test Voice Synthesis",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            )
+                        }
                     }
                 }
             }

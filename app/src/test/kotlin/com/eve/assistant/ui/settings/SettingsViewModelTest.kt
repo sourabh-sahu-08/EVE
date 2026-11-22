@@ -1,20 +1,24 @@
 package com.eve.assistant.ui.settings
 
+import com.eve.assistant.ui.home.FakeTextToSpeechEngine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
 class SettingsViewModelTest {
 
+    private lateinit var fakeTtsEngine: FakeTextToSpeechEngine
     private lateinit var viewModel: SettingsViewModel
 
     @Before
     fun setUp() {
-        viewModel = SettingsViewModel()
+        fakeTtsEngine = FakeTextToSpeechEngine()
+        viewModel = SettingsViewModel(fakeTtsEngine)
     }
 
     @Test
@@ -41,15 +45,28 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun voiceAndAcoustic_updateStateCorrectly() = runTest {
+    fun voiceAndAcoustic_updateStateAndEngineCorrectly() = runTest {
         viewModel.selectVoice(VoicePersonality.ECHO)
         assertEquals(VoicePersonality.ECHO, viewModel.uiState.value.selectedVoice)
+        assertEquals(VoicePersonality.ECHO, fakeTtsEngine.selectedPersonality)
 
         viewModel.setSpeechRate(1.25f)
         assertEquals(1.25f, viewModel.uiState.value.speechRate, 0.01f)
+        assertEquals(1.25f, fakeTtsEngine.currentRate, 0.01f)
 
         viewModel.setPitchMultiplier(0.9f)
         assertEquals(0.9f, viewModel.uiState.value.pitchMultiplier, 0.01f)
+        assertEquals(0.9f, fakeTtsEngine.currentPitch, 0.01f)
+    }
+
+    @Test
+    fun testVoiceSynthesis_invokesTtsEngine() = runTest {
+        viewModel.testVoiceSynthesis()
+        assertNotNull(fakeTtsEngine.lastSpokenText)
+        assertTrue(fakeTtsEngine.lastSpokenText!!.contains("operational"))
+
+        viewModel.stopVoiceSynthesis()
+        assertTrue(fakeTtsEngine.stopCalled)
     }
 
     @Test
@@ -61,5 +78,6 @@ class SettingsViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(VoicePersonality.NOVA, state.selectedVoice)
         assertTrue(state.isWakeWordEnabled)
+        assertEquals(VoicePersonality.NOVA, fakeTtsEngine.selectedPersonality)
     }
 }

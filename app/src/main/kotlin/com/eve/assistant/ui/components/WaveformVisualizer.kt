@@ -19,7 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.eve.assistant.ui.home.EveState
@@ -30,11 +29,13 @@ import com.eve.assistant.ui.theme.StateSpeaking
 
 /**
  * Animated sound-wave frequency spectrum equalizer for voice input/output.
+ * Modulates dynamically in response to real-time audio RMS decibel levels.
  */
 @Composable
 fun WaveformVisualizer(
     eveState: EveState,
     modifier: Modifier = Modifier,
+    audioRmsLevel: Float = 0f,
     barCount: Int = 9,
     maxHeight: Dp = 38.dp,
     barWidth: Dp = 3.5.dp
@@ -80,7 +81,14 @@ fun WaveformVisualizer(
                 label = "BarHeight_$i"
             )
 
-            val currentHeight = maxHeight * targetHeightFraction
+            // When real mic RMS is active during listening, modulate height with speech volume
+            val effectiveFraction = if (eveState == EveState.LISTENING && audioRmsLevel > 0.05f) {
+                (targetHeightFraction * 0.4f + audioRmsLevel * 0.6f).coerceIn(0.12f, 1.0f)
+            } else {
+                targetHeightFraction
+            }
+
+            val currentHeight = maxHeight * effectiveFraction
 
             Box(
                 modifier = Modifier

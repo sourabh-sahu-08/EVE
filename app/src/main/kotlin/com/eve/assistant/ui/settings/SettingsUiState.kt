@@ -28,6 +28,7 @@ data class SettingsUiState(
     val speechRate: Float = 1.0f,
     val pitchMultiplier: Float = 1.0f,
     val isNoiseSuppressionEnabled: Boolean = true,
+    val isSpeakingTest: Boolean = false,
 
     // Privacy & Permissions
     val isMicPermissionGranted: Boolean = true,
@@ -36,7 +37,7 @@ data class SettingsUiState(
     val isAnonymousTelemetryEnabled: Boolean = false,
 
     // System Telemetry
-    val appVersion: String = "1.0.0-phase1",
-    val engineStatus: String = "Cloud AI Ready",
+    val appVersion: String = "1.0.0-phase2",
+    val engineStatus: String = "Neural Voice Pipeline Ready",
     val architecture: String = "Clean Architecture + MVVM"
 )

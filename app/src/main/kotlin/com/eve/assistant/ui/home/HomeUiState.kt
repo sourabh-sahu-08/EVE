@@ -21,7 +21,7 @@ enum class ConnectionStatus {
 }
 
 /**
- * State container for the EVE Home Screen.
+ * Reactive state container for the EVE Home Screen and multi-provider voice interaction pipeline.
  */
 data class HomeUiState(
     val eveState: EveState = EveState.IDLE,
@@ -29,8 +29,19 @@ data class HomeUiState(
     val latencyMs: Int = 24,
     val greeting: String = "Good day, Sourabh",
     val statusMessage: String = "Neural Engine Ready",
+    val partialTranscript: String? = null,
     val lastUserQuery: String? = null,
     val lastEveResponse: String? = null,
     val lastInteractionTime: String? = null,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val audioRmsLevel: Float = 0f,
+    val isMicPermissionGranted: Boolean = false,
+    val isRecognitionAvailable: Boolean = true,
+    val isTtsReady: Boolean = false,
+
+    // Phase 3 Multi-Provider AI Telemetry
+    val activeProvider: String? = null,
+    val activeModel: String? = null,
+    val providerLatencyMs: Long? = null,
+    val fallbackCount: Int = 0
 )

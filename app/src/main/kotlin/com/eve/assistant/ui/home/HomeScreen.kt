@@ -1,5 +1,9 @@
 package com.eve.assistant.ui.home
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -18,23 +22,32 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.eve.assistant.ui.components.EveIcons
@@ -44,6 +57,7 @@ import com.eve.assistant.ui.components.GlowingOrb
 import com.eve.assistant.ui.components.MicInteractionButton
 import com.eve.assistant.ui.components.WaveformVisualizer
 import com.eve.assistant.ui.theme.BackgroundGradient
+import com.eve.assistant.ui.theme.CyberViolet
 import com.eve.assistant.ui.theme.ElectricCyan
 import com.eve.assistant.ui.theme.GlassBorder
 import com.eve.assistant.ui.theme.GlassSurface
@@ -58,8 +72,8 @@ import com.eve.assistant.ui.theme.TextTertiary
 
 /**
  * Premium Home Screen interface for EVE.
- * Houses the animated central AI orb, voice status telemetry,
- * sound-wave visualizer, conversation preview, and interactive state switcher.
+ * Connects the real speech recognition engine, real text-to-speech synthesis,
+ * central glowing AI orb, dynamic waveform equalizer, and conversation preview.
  */
 @Composable
 fun HomeScreen(
@@ -68,7 +82,44 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Initialize speech & TTS managers with application context
+    DisposableEffect(context) {
+        viewModel.attachContext(context)
+        onDispose { }
+    }
+
+    // Safeguard audio lifecycle: stop recordings & speech when backgrounded
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP || event == Lifecycle.Event.ON_PAUSE) {
+                viewModel.onAppBackgrounded()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // Runtime Permission Launcher for RECORD_AUDIO
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.onPermissionGranted()
+        } else {
+            viewModel.onPermissionDenied()
+        }
+    }
+
+    val hasMicPermission = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.RECORD_AUDIO
+    ) == PackageManager.PERMISSION_GRANTED
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -126,7 +177,14 @@ fun HomeScreen(
                     GlowingOrb(
                         eveState = uiState.eveState,
                         size = 250.dp,
-                        onClick = { viewModel.onMicClicked() }
+                        onClick = {
+                            viewModel.onMicClicked(
+                                hasPermission = hasMicPermission,
+                                onRequestPermission = {
+                                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                }
+                            )
+                        }
                     )
                 }
 
@@ -169,16 +227,17 @@ fun HomeScreen(
                         )
                     }
 
-                    // 4. Waveform Audio Visualizer (active during Listening / Speaking)
+                    // 4. Waveform Audio Visualizer (modulated by real RMS decibels during listening)
                     WaveformVisualizer(
                         eveState = uiState.eveState,
+                        audioRmsLevel = uiState.audioRmsLevel,
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // 5. Conversation Preview or Wake-Word Tip Card
+                // 5. Conversation Preview Card
                 GlassCard(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
@@ -193,7 +252,7 @@ fun HomeScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "LATEST SESSION",
+                                text = "LATEST VOICE SESSION",
                                 color = TextTertiary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -209,7 +268,26 @@ fun HomeScreen(
 
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        if (uiState.lastUserQuery != null && uiState.lastEveResponse != null) {
+                        // Streaming partial transcript while actively recognizing
+                        if (uiState.partialTranscript != null) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(StateListening)
+                                )
+                                Text(
+                                    text = "\"${uiState.partialTranscript}...\"",
+                                    color = ElectricCyan,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        } else if (uiState.lastUserQuery != null && uiState.lastEveResponse != null) {
                             Text(
                                 text = "\"${uiState.lastUserQuery}\"",
                                 color = TextPrimary,
@@ -221,11 +299,55 @@ fun HomeScreen(
                                 text = uiState.lastEveResponse ?: "",
                                 color = TextSecondary,
                                 fontSize = 13.sp,
-                                maxLines = 2
+                                maxLines = 4
                             )
+
+                            if (uiState.activeProvider != null) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(ElectricCyan.copy(alpha = 0.15f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "${uiState.activeProvider?.uppercase()} · ${uiState.activeModel}",
+                                            color = ElectricCyan,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    if (uiState.providerLatencyMs != null) {
+                                        Text(
+                                            text = "${uiState.providerLatencyMs}ms",
+                                            color = TextTertiary,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                    if (uiState.fallbackCount > 0) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(CyberViolet.copy(alpha = 0.2f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "Fallback #${uiState.fallbackCount}",
+                                                color = CyberViolet,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         } else {
                             Text(
-                                text = "Say \"Hey Eve\" or tap the microphone to begin voice interaction.",
+                                text = "Tap the microphone to speak. Real Android Speech-to-Text and TTS are active.",
                                 color = TextSecondary,
                                 fontSize = 13.sp,
                                 lineHeight = 18.sp
@@ -273,27 +395,69 @@ fun HomeScreen(
                                 tint = ElectricCyan,
                                 modifier = Modifier
                                     .size(20.dp)
-                                    .clickable { viewModel.retryConnection() }
+                                    .clickable {
+                                        viewModel.onMicClicked(
+                                            hasPermission = hasMicPermission,
+                                            onRequestPermission = {
+                                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                            }
+                                        )
+                                    }
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                // 7. Interactive State Testing Selector (for Phase 1 UI Verification)
+                // 7. Testing Controls Row (Local TTS & State Preview)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "UI STATE PREVIEW",
-                        color = TextTertiary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.0.sp
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "DIAGNOSTIC PIPELINE",
+                            color = TextTertiary,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.0.sp
+                        )
+
+                        // Explicit local TTS test button
+                        Button(
+                            onClick = { viewModel.testTtsSpeech() },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CyberViolet.copy(alpha = 0.25f),
+                                contentColor = ElectricCyan
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                horizontal = 10.dp,
+                                vertical = 4.dp
+                            )
+                        ) {
+                            Icon(
+                                imageVector = EveIcons.RecordVoiceOver,
+                                contentDescription = null,
+                                tint = ElectricCyan,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Test Local TTS",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(6.dp))
+
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxWidth(),
@@ -332,7 +496,14 @@ fun HomeScreen(
                 // 8. Large Central Tactile Microphone Button
                 MicInteractionButton(
                     eveState = uiState.eveState,
-                    onClick = { viewModel.onMicClicked() },
+                    onClick = {
+                        viewModel.onMicClicked(
+                            hasPermission = hasMicPermission,
+                            onRequestPermission = {
+                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                            }
+                        )
+                    },
                     size = 80.dp
                 )
 
